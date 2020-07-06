@@ -28,8 +28,6 @@
 
 import Foundation
 
-#warning("https://dogpatchserver.herokuapp.com/api/v1/dogs")
-
 struct Dog: Decodable, Equatable {
   
   // MARK: - Identifier Properties

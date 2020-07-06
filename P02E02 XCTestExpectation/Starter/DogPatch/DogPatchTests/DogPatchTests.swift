@@ -27,21 +27,78 @@
 /// THE SOFTWARE.
 
 import XCTest
+@testable import DogPatch
 
 final class AsynchronousTestCase: XCTestCase {
   
+  let timeout: TimeInterval = 2
+  var expectation: XCTestExpectation!
+  
+  override func setUp() {
+    expectation = expectation(description: "Server response in reasonable time.")
+  }
+  
   func test_noServerResponse() {
-    let expectation = self.expectation(description: "Server response in reasonable time.")
-    defer { waitForExpectations(timeout: 2) }
     
     let url = URL(string: "doggone")!
     
     URLSession.shared.dataTask(with: url) { data, response, error in
-      defer { expectation.fulfill() }
+      defer { self.expectation.fulfill() }
       
       XCTAssertNil(data)
       XCTAssertNil(response)
       XCTAssertNotNil(error)
     }.resume()
+    
+    waitForExpectations(timeout: timeout)
+  }
+  
+  func test_decodeDog() {
+    let url = URL(string: "https://dogpatchserver.herokuapp.com/api/v1/dogs")!
+    
+    URLSession.shared.dataTask(with: url) { data, response, error in
+      defer { self.expectation.fulfill() }
+      
+      XCTAssertNil(error)
+      
+      do {
+        let response = try XCTUnwrap(response as? HTTPURLResponse)
+        XCTAssertEqual(response.statusCode, 200)
+        
+        let data = try XCTUnwrap(data)
+        XCTAssertNoThrow( try JSONDecoder().decode([Dog].self, from: data) )
+      }
+      catch { }
+    }
+    .resume()
+    
+    waitForExpectations(timeout: timeout)
+  }
+  
+  func test_response404() {
+    let url = URL(string: "https://dogpatchserver.herokuapp.com/api/v1/cats")!
+    
+    URLSession.shared.dataTask(with: url) { data, response, error in
+      defer { self.expectation.fulfill() }
+      
+      XCTAssertNil(error)
+      
+      do {
+        let response = try XCTUnwrap(response as? HTTPURLResponse)
+        XCTAssertEqual(response.statusCode, 404)
+        
+        let data = try XCTUnwrap(data)
+        XCTAssertThrowsError( try JSONDecoder().decode([Dog].self, from: data) ) { error in
+          guard case DecodingError.typeMismatch = error else {
+            XCTFail("\(error)")
+            return
+          }
+        }
+      }
+      catch { }
+    }
+    .resume()
+    
+    waitForExpectations(timeout: timeout)
   }
 }
