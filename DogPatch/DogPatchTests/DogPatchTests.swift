@@ -39,7 +39,6 @@ final class AsynchronousTestCase: XCTestCase {
   }
   
   func test_noServerResponse() {
-    
     let url = URL(string: "doggone")!
     
     URLSession.shared.dataTask(with: url) { data, response, error in
@@ -76,6 +75,7 @@ final class AsynchronousTestCase: XCTestCase {
   }
   
   func test_response404() {
+    // Bad Url to test a 404 reponse
     let url = URL(string: "https://dogpatchserver.herokuapp.com/api/v1/cats")!
     
     URLSession.shared.dataTask(with: url) { data, response, error in
@@ -101,4 +101,49 @@ final class AsynchronousTestCase: XCTestCase {
     
     waitForExpectations(timeout: timeout)
   }
+  
+  func test_decodeOrthopedicDogtor() {
+    let url = URL(string: "https://dogpatchserver.herokuapp.com/api/v1/dogs")!
+    
+    URLSession.shared.dataTask(with: url) { data, response, error in
+      defer { self.expectation.fulfill() }
+      
+      XCTAssertNil(error)
+      XCTAssertEqual((response as? HTTPURLResponse)?.statusCode, 200)
+      
+      do {
+        _ = try JSONDecoder().decode([OrthopedicDogtor].self, from: try XCTUnwrap(data))
+      }
+        
+      catch {
+        switch error {
+        case DecodingError.keyNotFound(let key, _):
+          XCTAssertEqual(key.stringValue, "bones")
+        default:
+          XCTFail("\(error)")
+        }
+      }
+    }
+    .resume()
+    
+    waitForExpectations(timeout: timeout)
+  }
+}
+
+// Struct created to test a Decodable error
+struct OrthopedicDogtor: Decodable {
+  let id: String
+  let sellerID: String
+  let about: String
+  let birthday: Date
+  let breed: String
+  let breederRating: Double
+  let cost: Decimal
+  let created: Date
+  let imageURL: URL
+  let name: String
+  
+  // Key not included in the json response
+  // Used for testing a Decodable error
+  let bones: [Int]
 }
