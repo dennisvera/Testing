@@ -29,36 +29,35 @@
 import Foundation
 
 protocol DogPatchService {
-  func getDogs(completion:
-    @escaping ([Dog]?, Error?) -> Void) -> URLSessionDataTask
+  func getDogs(completion: @escaping ([Dog]?, Error?) -> Void) -> URLSessionDataTask
+}
+
+protocol DataTaskMaker {
+  func dataTask(with url: URL, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask
 }
 
 class DogPatchClient {
   
   let baseURL: URL
-  let session: URLSession
+  let session: DataTaskMaker
   let responseQueue: DispatchQueue?
   
-  static let shared =
-  DogPatchClient(
-    baseURL: URL(string:
-      "https://dogpatchserver.herokuapp.com/api/v1/")!,
-    session: .shared,
-    responseQueue: .main)
+  static let shared = DogPatchClient(baseURL: URL(string: "https://dogpatchserver.herokuapp.com/api/v1/")!,
+                                     session: URLSession.shared,
+                                     responseQueue: .main)
   
-  init(baseURL: URL,
-       session: URLSession,
-       responseQueue: DispatchQueue?) {
+  init(baseURL: URL, session: DataTaskMaker, responseQueue: DispatchQueue?) {
     self.baseURL = baseURL
     self.session = session
     self.responseQueue = responseQueue
   }
   
-  func getDogs(completion:
-    @escaping ([Dog]?, Error?) -> Void) -> URLSessionDataTask {
+  func getDogs(completion: @escaping ([Dog]?, Error?) -> Void) -> URLSessionDataTask {
     let url = URL(string: "dogs", relativeTo: baseURL)!
+    
     let task = session.dataTask(with: url) { [weak self] data, response, error in
       guard let self = self else { return }
+      
       guard let response = response as? HTTPURLResponse,
         response.statusCode == 200,
         error == nil,
@@ -66,6 +65,7 @@ class DogPatchClient {
           self.dispatchResult(error: error, completion: completion)
           return
       }
+      
       let decoder = JSONDecoder()
       do {
         let dogs = try decoder.decode([Dog].self, from: data)
@@ -78,14 +78,15 @@ class DogPatchClient {
     return task
   }
   
-  private func dispatchResult<Type>(
-    models: Type? = nil,
-    error: Error? = nil,
-    completion: @escaping (Type?, Error?) -> Void) {
+  private func dispatchResult<Type>(models: Type? = nil,
+                                    error: Error? = nil,
+                                    completion: @escaping (Type?, Error?) -> Void) {
+    
     guard let responseQueue = responseQueue else {
       completion(models, error)
       return
     }
+    
     responseQueue.async {
       completion(models, error)
     }
@@ -93,3 +94,5 @@ class DogPatchClient {
 }
 
 extension DogPatchClient: DogPatchService { }
+
+extension URLSession: DataTaskMaker {}

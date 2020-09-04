@@ -128,6 +128,49 @@ final class AsynchronousTestCase: XCTestCase {
     
     waitForExpectations(timeout: timeout)
   }
+  
+  func test_dogPatchClient() throws {
+    
+    struct FakeDataTaskMaker: DataTaskMaker {
+      
+      let data: Data
+      static let dummyUrl = URL(string: "dummy")!
+      
+      init() throws {
+        let testBundle = Bundle(for: AsynchronousTestCase.self)
+        let url = try XCTUnwrap(testBundle.url(forResource: "dogs", withExtension: "json"))
+        
+        data = try Data(contentsOf: url)
+      }
+            
+      func dataTask(with _: URL, completionHandler: @escaping (Data?, URLResponse?, Error?) -> Void) -> URLSessionDataTask {
+        completionHandler(data,
+                          HTTPURLResponse(url: Self.dummyUrl,
+                                          statusCode: 200,
+                                          httpVersion: nil,
+                                          headerFields: nil), nil)
+        
+        // URLSessionDataTask 'init()' was deprecated in iOS 13.0:
+        // This is a work around
+        final class FakeDataTask: URLSessionDataTask {
+          override init() {}
+        }
+        
+        return FakeDataTask()
+      }
+    }
+    
+    _ = DogPatchClient(baseURL: FakeDataTaskMaker.dummyUrl,
+                       session: try FakeDataTaskMaker(),
+                       responseQueue: nil).getDogs { dogs, error in
+                        defer { self.expectation.fulfill() }
+                        
+                        XCTAssertEqual(dogs?.count, 4)
+                        XCTAssertNil(error)
+    }
+    
+    waitForExpectations(timeout: timeout)
+  }
 }
 
 // Struct created to test a Decodable error
